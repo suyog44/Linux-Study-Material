@@ -2,19 +2,24 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#define SIZE 1<<2
 
-int value,valuearr[4];
+int value,valuearr[SIZE];
 char *name;
 int cb_value = 0;
 
 module_param(value, int, S_IWUSR|S_IRUSR);
 module_param(name, charp, S_IWUSR|S_IRUSR);
+module_param_array(valuearr, int, NULL, S_IRUSR|S_IWUSR);
 
 static int __init kernel_param_init(void)
 {
 	printk(KERN_INFO"Kernel module param loaded!");
 	printk(KERN_INFO"Value: %d",value);
 	printk(KERN_INFO"Char: %s",name);
+	for(int i=0; i<sizeof(valuearr)/sizeof(valuearr[0]); i++){
+		printk(KERN_INFO"Arr[%d] = %d \n", i, valuearr[i]);
+	}
 	return 0;
 }
 
