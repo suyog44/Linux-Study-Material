@@ -66,6 +66,7 @@ static int __init file_operations_init(void)
 
 static void __exit file_operations_exit(void)
 {
+	cdev_del(&cdev_ops);
 	unregister_chrdev_region(dev, 1);
 }
 
