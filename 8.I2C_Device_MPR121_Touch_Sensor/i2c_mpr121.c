@@ -4,10 +4,10 @@
 #include <linux/fs.h>
 #include <linux/cdev.h>
 #include <linux/i2c.h>
-#define DEV_NAME "MPR121"
-#define DEV_CLASS "MPR121_class"
+#define DEV_NAME "mpr121"
+#define DEV_CLASS "mpr121_class"
 #define I2C_BUS 1
-#define SLAVE_DEV "mp121_touch"
+#define SLAVE_DEV "mpr121_touch"
 #define SLAVE_ADDR 0x5a
 
 ssize_t mpr121_read (struct file *, char __user *, size_t, loff_t *);
@@ -21,10 +21,6 @@ static struct cdev mpr121_device;
 static struct i2c_adapter * i2c_adapter_mpr121 = NULL;
 static struct i2c_client * i2c_client_mpr121 = NULL;
 
-static struct i2c_board_info i2c_board_info = {
-	I2C_BOARD_INFO(SLAVE_DEV, SLAVE_ADDR)
-};
-
 static struct file_operations fops = {
 	owner: THIS_MODULE,
 	read: mpr121_read,
@@ -32,11 +28,31 @@ static struct file_operations fops = {
 	release: mpr121_close,
 };
 
+static struct i2c_driver i2c_driver_mpr121 = {
+	driver: {
+		name: SLAVE_DEV,
+		owner: THIS_MODULE
+	}
+};
+
+static int get_mpr121_status(void)
+{
+	return 0;
+}
+
 ssize_t mpr121_read (struct file *filp, char __user *buf, size_t len, loff_t *offset)
 {
-	int bytes_read;
+	int bytes_read, to_copy, not_copied;
+	char out_string[20];
 	pr_info("Read MPR121 status registers");
-	return bytes_read; 
+	int mpr121_status;
+
+	to_copy=min(sizeof(out_string), len);
+	mpr121_status = get_mpr121_status();
+	snprintf(out_string, sizeof(out_string), "Status Register: %d\n", mpr121_status);
+	not_copied = copy_to_user(buf, out_string, to_copy);
+	bytes_read = to_copy - not_copied;
+	return bytes_read;
 }
 
 int mpr121_open (struct inode *inode, struct file *file)
@@ -53,6 +69,12 @@ int mpr121_close (struct inode *inode, struct file *file)
 
 static int __init mpr121_init(void)
 {
+	char dev_name[10];
+	struct i2c_board_info board_info = {
+		type: "mpr121_i2c",
+		dev_name: dev_name,
+	};
+
 	if(alloc_chrdev_region(&mpr121_dev, 0, 1, DEV_NAME)<0){
 		pr_err("Device could not allocated!\n");
 		return -1;
@@ -78,11 +100,16 @@ static int __init mpr121_init(void)
 	i2c_adapter_mpr121 = i2c_get_adapter(I2C_BUS);
 
 	if(i2c_adapter_mpr121 != NULL){
-		i2c_client_mpr121 = i2c_acpi_new_device(i2c_adapter_mpr121, 1, &i2c_board_info);
-		if(i2c_client_mpr121!=NULL){
-		
+		i2c_client_mpr121 = i2c_acpi_new_device(&i2c_client_mpr121->dev, 1, &board_info);
+		if(i2c_client_mpr121 != NULL){
+			if(i2c_add_driver(&i2c_driver_mpr121) != -1){
+				pr_info("mpr121 i2c driver added successfully!\n");
+			}
+			else{
+				pr_err("Cannot add i2c driver for mpr121!\n");
+			}
+			i2c_put_adapter(i2c_adapter_mpr121);
 		}
-		i2c_put_adapter(i2c_adapter_mpr121);
 	}
 	pr_info("MPR121 device added as character device!\n");
 
