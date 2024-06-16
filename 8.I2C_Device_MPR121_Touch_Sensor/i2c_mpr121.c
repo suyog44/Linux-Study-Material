@@ -13,13 +13,14 @@
 ssize_t mpr121_read (struct file *, char __user *, size_t, loff_t *);
 int mpr121_open (struct inode *, struct file *);
 int mpr121_close (struct inode *, struct file *);
+static int get_mpr121_status(void);
 
 static dev_t mpr121_dev;
 static struct class *mpr121_class;
 static struct cdev mpr121_device;
 
-static struct i2c_adapter * i2c_adapter_mpr121 = NULL;
-static struct i2c_client * i2c_client_mpr121 = NULL;
+static unsigned short addr = 0x5a;
+static unsigned short addr_list[] = {0x51,0x01};
 
 static struct file_operations fops = {
 	owner: THIS_MODULE,
@@ -28,16 +29,10 @@ static struct file_operations fops = {
 	release: mpr121_close,
 };
 
-static struct i2c_driver i2c_driver_mpr121 = {
-	driver: {
-		name: SLAVE_DEV,
-		owner: THIS_MODULE
-	}
-};
-
 static int get_mpr121_status(void)
 {
-	return 0;
+	pr_info("Fetch resister status from device id:0x%x\n", addr);
+	return 0xffff;
 }
 
 ssize_t mpr121_read (struct file *filp, char __user *buf, size_t len, loff_t *offset)
@@ -67,13 +62,8 @@ int mpr121_close (struct inode *inode, struct file *file)
         return 0;
 }
 
-static int __init mpr121_init(void)
+static int mpr121_probe (struct i2c_client *client, const struct i2c_device_id *mpr121_i2c_device)
 {
-	char dev_name[10];
-	struct i2c_board_info board_info = {
-		type: "mpr121_i2c",
-		dev_name: dev_name,
-	};
 
 	if(alloc_chrdev_region(&mpr121_dev, 0, 1, DEV_NAME)<0){
 		pr_err("Device could not allocated!\n");
@@ -97,22 +87,6 @@ static int __init mpr121_init(void)
 		goto kernelerror;
 	}
 
-	i2c_adapter_mpr121 = i2c_get_adapter(I2C_BUS);
-
-	if(i2c_adapter_mpr121 != NULL){
-		i2c_client_mpr121 = i2c_acpi_new_device(&i2c_client_mpr121->dev, 1, &board_info);
-		if(i2c_client_mpr121 != NULL){
-			if(i2c_add_driver(&i2c_driver_mpr121) != -1){
-				pr_info("mpr121 i2c driver added successfully!\n");
-			}
-			else{
-				pr_err("Cannot add i2c driver for mpr121!\n");
-			}
-			i2c_put_adapter(i2c_adapter_mpr121);
-		}
-	}
-	pr_info("MPR121 device added as character device!\n");
-
 	return 0;
 
 kernelerror:
@@ -125,13 +99,42 @@ class_err:
 	return -1;
 }
 
-static void __exit mpr121_exit(void)
+static void mpr121_remove (struct i2c_client *client)
 {
 	pr_info("Unloading module MPR121!\n");
 	cdev_del(&mpr121_device);
 	device_destroy(mpr121_class, mpr121_dev);
 	class_destroy(mpr121_class);
 	unregister_chrdev_region(mpr121_dev,1);
+	return;
+}
+
+static const struct i2c_device_id mpr121_device_id[] = {
+	{"mpr121_touch", 0},
+	{}
+};
+
+static struct i2c_driver mpr121_driver = {
+	probe: mpr121_probe,
+	remove: mpr121_remove,
+	driver: {
+		name: "mpr121",
+		owner: THIS_MODULE
+	},
+	address_list: addr_list,
+	id_table: mpr121_device_id,
+	class: I2C_CLASS_HWMON | I2C_CLASS_SPD,
+};
+
+static int __init mpr121_init(void)
+{
+	i2c_add_driver(&mpr121_driver);
+	return 0;
+}
+
+static void __exit mpr121_exit(void)
+{
+	i2c_del_driver(&mpr121_driver);
 	return;
 }
 
