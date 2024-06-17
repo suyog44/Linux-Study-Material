@@ -1,0 +1,17 @@
+/dts-v1/;
+/plugin/;
+/{
+	compatible = "brcm,bcm2835";
+	fragment@0{
+		target = <&i2c1>;
+		__overlay__{
+			#address-cells = <0x01>;
+			#size-celss = <0x00>;
+			mpr121:mpr121@5a{
+				compatible="mpr121_touch,mpr121";
+				regs = <0x5a>;
+				status = "okay";
+			};
+		};
+	};
+};
